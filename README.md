@@ -31,8 +31,8 @@ A continuación se muestra el listado completo de prácticas. Haz clic en cada u
 | # | Práctica | Descripción Breve | Estado | Enlace |
 |---|---|---|---|---|
 | **01** | **Aspiradora Autónoma** | Navegación reactiva y evasión de obstáculos con FSM. | 🟢 Completada | [Ver memoria](./p1_basic_vacuum/) |
-| **02** | **Seguidor de Línea F1** | Control de trayectoria y estabilidad mediante PID en circuito. | ⏳ En progreso | [Ver memoria](./p2_follow_line/) |
-| **03** | **Práctica 3** | [Breve descripción de la práctica 3] | 🔴 Pendiente | [Ver memoria](./practica3/) |
+| **02** | **Seguidor de Línea F1** | Control de trayectoria y estabilidad mediante PID en circuito. | 🟢 Completada | [Ver memoria](./p2_follow_line/) |
+| **03** | **Práctica 3** | [Breve descripción de la práctica 3] | ⏳ En progreso | [Ver memoria](./practica3/) |
 | **04** | **Práctica 4** | [Breve descripción de la práctica 4] | 🔴 Pendiente | [Ver memoria](./practica4/) |
 | **05** | **Práctica 5** | [Breve descripción de la práctica 5] | 🔴 Pendiente | [Ver memoria](./practica5/) |
 | **06** | **Práctica 6** | [Breve descripción de la práctica 6] | 🔴 Pendiente | [Ver memoria](./practica6/) |
@@ -44,13 +44,17 @@ A continuación se muestra el listado completo de prácticas. Haz clic en cada u
 ### Práctica 1: Aspiradora Autónoma
 > *Navegación reactiva mediante sensor láser/bumpers y estados aleatorios.*
 
-![Aspiradora Demo](./docs/p1_demo.gif)
+![Aspiradora Demo](./docs/p1/p1_demo.gif)
 
 ### Práctica 2: Seguidor de Línea F1 (Control PID)
 > *Seguimiento de línea mediante visión por computador y sintonización PID.*
 
-![F1 PID Demo](./docs/p2_demo.gif)
+![F1 PID Demo](./docs/p2/SimpleCircuit_10s.gif)
 
+### Práctica 3: Seguidor de Línea F1 (Control PID)
+> *Seguimiento de línea mediante visión por computador y sintonización PID.*
+
+![F1 PID Demo](./docs/p2/SimpleCircuit_10s.gif)
 ---
 
 ## Política de Código
