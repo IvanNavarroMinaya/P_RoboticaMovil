@@ -51,10 +51,10 @@ A continuación se muestra el listado completo de prácticas. Haz clic en cada u
 
 ![F1 PID Demo](./docs/p2/SimpleCircuit_10s.gif)
 
-### Práctica 3: Seguidor de Línea F1 (Control PID)
-> *Seguimiento de línea mediante visión por computador y sintonización PID.*
+### Práctica 3: 
+> *Por definir.*
 
-![F1 PID Demo](./docs/p2/SimpleCircuit_10s.gif)
+![P3](video)
 ---
 
 ## Política de Código

@@ -221,7 +221,7 @@ El robot comienza siempre con la espiral para cubrir sistemáticamente la zona d
 ---
 
 ## 11. Demostración en vídeo
-[![Demostración Aspiradora](/memorias/docs/p1/p1_demo.gif)]
+[![Demostración Aspiradora](./docs/p1/p1_demo.gif)]
 
 ---
 

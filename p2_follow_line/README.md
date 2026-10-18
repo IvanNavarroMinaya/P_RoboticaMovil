@@ -275,7 +275,7 @@ Ideas que valoré y no implementé, para no complicar el código más allá de l
 ---
 
 ## 13. Demostración en vídeo
-[![Demostración Fórmula 1 Sigue-Líneas](/memorias/docs/p2/SimpleCircuit_10s.gif)]
+[![Demostración Fórmula 1 Sigue-Líneas](./docs/p2/SimpleCircuit_10s.gif)]
 
 ---
 
