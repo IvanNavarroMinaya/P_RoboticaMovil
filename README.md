@@ -6,9 +6,9 @@ Bienvenido/a al repositorio de las prácticas de la asignatura **Robótica Móvi
 
 ## Datos del Estudiante
 
-- **Nombre:** [Iván Navarro Minaya]
-- **Titulacion / Grado:** [Grado en Ingeniería Robótica Sofware]
-- **Universidad:** [Rey Juan Carlos - Escuela de Ingeniería de Fuenlabrada]
+- **Nombre:** Iván Navarro Minaya
+- **Titulacion / Grado:** Grado en Ingeniería Robótica Sofware
+- **Universidad:** Rey Juan Carlos - Escuela de Ingeniería de Fuenlabrada
 - **Curso Académico:** 2026 / 2027
 
 ---
@@ -32,7 +32,7 @@ A continuación se muestra el listado completo de prácticas. Haz clic en cada u
 |---|---|---|---|---|
 | **01** | **Aspiradora Autónoma** | Navegación reactiva y evasión de obstáculos con FSM. | 🟢 Completada | [Ver memoria](./p1_basic_vacuum/) |
 | **02** | **Seguidor de Línea F1** | Control de trayectoria y estabilidad mediante PID en circuito. | 🟢 Completada | [Ver memoria](./p2_follow_line/) |
-| **03** | **Práctica 3** | Evasión de obstaculos con VFF | ⏳ En progreso | [Ver memoria](./p3_obstacle_avoidance/) |
+| **03** | **Práctica 3** | Navegación local esquivando obstáculos con algoritmo VFF | ⏳ En progreso | [Ver memoria](./p3_obstacle_avoidance/) |
 | **04** | **Práctica 4** | [Breve descripción de la práctica 4] | 🔴 Pendiente | [Ver memoria](./practica4/) |
 | **05** | **Práctica 5** | [Breve descripción de la práctica 5] | 🔴 Pendiente | [Ver memoria](./practica5/) |
 | **06** | **Práctica 6** | [Breve descripción de la práctica 6] | 🔴 Pendiente | [Ver memoria](./practica6/) |
@@ -51,10 +51,10 @@ A continuación se muestra el listado completo de prácticas. Haz clic en cada u
 
 ![F1 PID Demo](./docs/p2/SimpleCircuit_10s.gif)
 
-### Práctica 3: Evasión de Obtáculos F1
-> *Evasión de obstaculos con VFF*
+### Práctica 3: Evasión de Obtáculos F1 (Implementación VFF)
+> *Evasión de obstáculos en navegación local, implementando un algoritmo VFF*
 
-![P3](./docs/p3/demo.gif)
+![P3](./docs/p3/p3_demo.gif)
 ---
 
 ## Política de Código
