@@ -131,8 +131,9 @@ De esta forma obtengo un campo de distancias que indica lo cerca que se encuentr
 
 Una vez calculadas las distancias, definí una función de penalización cuadrática:
 
-$$ P(d) = \begin{cases} \lambda\left(\frac{R-d}{R}\right)^2 & d<R \\ 0 & d\geq R \end{cases} $$
-
+```math
+P(d) = \left\{ \begin{array}{ll} \lambda \left(\frac{R-d}{R}\right)^2 & d < R \\ 0 & d \geq R \end{array} \right.
+```
 
 Los parámetros que utilicé finalmente fueron:
 
