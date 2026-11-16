@@ -33,9 +33,9 @@ A continuación se muestra el listado completo de prácticas. Haz clic en cada u
 | **01** | **Aspiradora Autónoma** | Navegación reactiva y evasión de obstáculos con FSM. | 🟢 Completada | [Ver memoria](./p1_basic_vacuum/README.md) |
 | **02** | **Seguidor de Línea F1** | Control de trayectoria y estabilidad mediante PID en circuito. | 🟢 Completada | [Ver memoria](./p2_follow_line/README.md) |
 | **03** | **Evasor de obstáculos F1** | Navegación local evadiendo obstáculos con algoritmo VFF | 🟢 Completada | [Ver memoria](./p3_obstacle_avoidance/README.md) |
-| **04** | **Navegador global con TeleTaxi** | Navegación global implementando un algoritmo GPP | ⏳ En progreso | [Ver memoria](./p4_global_navigation/README.md) |
-| **05** | **Práctica 5** | [Breve descripción de la práctica 5] | 🔴 Pendiente | [Ver memoria](./practica5/) |
-| **06** | **Práctica 6** | [Breve descripción de la práctica 6] | 🔴 Pendiente | [Ver memoria](./practica6/) |
+| **04** | **Navegador global con TeleTaxi** | Navegación global implementando un algoritmo GPP | 🟢 Completada | [Ver memoria](./p4_global_navigation/README.md) |
+| **05** | **Práctica 5** | [Breve descripción de la práctica 5] | ⏳ En progreso | [Ver memoria](./p5/README.md) |
+| **06** | **Práctica 6** | [Breve descripción de la práctica 6] | 🔴 Pendiente | [Ver memoria](./p6/README.md) |
 
 ---
 
@@ -60,6 +60,16 @@ A continuación se muestra el listado completo de prácticas. Haz clic en cada u
 > *Navegación global siguiendo una lógica de un algoritmo que planea caminos por gradiente*
 
 ![P4](./docs/p4/p4_demo.gif)
+
+### Práctica 5: 
+> *[Breve descripción de la práctica 5]*
+
+![P5](./docs/p5/p5_demo.gif)
+
+### Práctica 6: 
+> *[Breve descripción de la práctica 6]*
+
+![P6](./docs/p6/p6_demo.gif)
 
 ---
 

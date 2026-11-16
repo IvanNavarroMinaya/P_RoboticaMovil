@@ -75,7 +75,7 @@ Para calcular los movimientos posibles utilizo los ocho vecinos de cada celda: c
 Los costes son:
 
 - Movimiento horizontal o vertical: 1.
-- Movimiento diagonal: \(\sqrt{2}\).
+- Movimiento diagonal:$\sqrt{2}$.
 
 También añadí una comprobación para evitar el *corner cutting*. Si un movimiento diagonal atraviesa la esquina de un edificio, se descarta aunque la celda de destino sea transitable. Para ello compruebo que las dos celdas ortogonales adyacentes también sean carretera.
 
@@ -123,7 +123,7 @@ Para poder aplicar esta penalización, primero necesitaba conocer la distancia d
 
 Implementé una propagación desde todas las celdas ocupadas del mapa. Inicialmente, las posiciones correspondientes a edificios tienen distancia cero y el resto tienen distancia infinita.
 
-A partir de ahí, se propagan las distancias utilizando los mismos ocho movimientos que en el planificador, con costes ortogonales de 1 y diagonales de \(\sqrt{2}\).
+A partir de ahí, se propagan las distancias utilizando los mismos ocho movimientos que en el planificador, con costes ortogonales de 1 y diagonales de $\sqrt{2}$.
 
 De esta forma obtengo un campo de distancias que indica lo cerca que se encuentra cada posición de un edificio.
 
@@ -131,13 +131,13 @@ De esta forma obtengo un campo de distancias que indica lo cerca que se encuentr
 
 Una vez calculadas las distancias, definí una función de penalización cuadrática:
 
-\[
+$$
 P(d)=
 \begin{cases}
 \lambda\left(\frac{R-d}{R}\right)^2 & d<R\\
 0 & d\geq R
 \end{cases}
-\]
+$$
 
 Los parámetros que utilicé finalmente fueron:
 
@@ -158,11 +158,11 @@ El siguiente paso fue integrar la penalización en Dijkstra.
 
 Para ello, modifiqué el coste de transición entre dos celdas:
 
-\[
+$$
 C(i,j)=D(i,j)\left(1+\frac{P(i)+P(j)}{2}\right)
-\]
+$$
 
-Donde \(D(i,j)\) es el coste geométrico del movimiento y \(P(i)\), \(P(j)\) son las penalizaciones de las dos celdas.
+Donde $D(i,j)$ es el coste geométrico del movimiento y $P(i)$, $P(j)$ son las penalizaciones de las dos celdas.
 
 Utilizo la media de ambas penalizaciones para tener en cuenta tanto la posición actual como la siguiente.
 
@@ -203,23 +203,24 @@ Después de obtener la trayectoria, necesitaba convertir sus puntos a coordenada
 
 A partir de varias pruebas con `WebGUI.rowColumn()`, observé que la relación entre las coordenadas del mundo y los índices de la matriz era aproximadamente lineal:
 
-\[
-row \approx 200+0.8y
-\]
+$$
+\text{row} \approx 200+0.8y
+$$
 
-\[
-col \approx 200+0.8x
-\]
+$$
+\text{col} \approx 200+0.8x
+$$
 
 Por tanto, utilicé la siguiente transformación inversa:
 
-\[
-x=\frac{row-200}{0.8}
-\]
+$$
+x=\frac{\text{row}-200}{0.8}
+$$
 
-\[
-y=\frac{col-200}{0.8}
-\]
+$$
+y=\frac{\text{col}-200}{0.8}
+$$
+
 
 La función queda así:
 
@@ -271,9 +272,9 @@ En cada iteración obtengo la posición actual del robot mediante `HAL.getPose3d
 
 La distancia se calcula mediante:
 
-\[
+$$
 d=\sqrt{(x_r-x_w)^2+(y_r-y_w)^2}
-\]
+$$
 
 Donde `(x_r, y_r)` es la posición del robot y `(x_w, y_w)` la del waypoint.
 
@@ -311,17 +312,17 @@ Una vez seleccionado el waypoint objetivo, necesito calcular hacia dónde debe o
 
 Primero obtengo el ángulo que une la posición actual del vehículo con el objetivo:
 
-\[
+$$
 \theta_d=\operatorname{atan2}(y_w-y_r,x_w-x_r)
-\]
+$$
 
 Después calculo el error respecto a la orientación actual:
 
-\[
+$$
 e_\theta=\theta_d-\theta_r
-\]
+$$
 
-Para evitar problemas al cruzar los límites de una vuelta completa, normalizo el error al intervalo \([-\pi,\pi]\).
+Para evitar problemas al cruzar los límites de una vuelta completa, normalizo el error al intervalo $[-\pi,\pi]$.
 
 De esta forma, el robot siempre intenta realizar el giro por el sentido que supone el menor cambio angular.
 
@@ -339,9 +340,9 @@ Esta prueba me permitió confirmar el sentido de giro y asegurarme de que el con
 
 Para controlar la orientación utilicé un controlador proporcional:
 
-\[
+$$
 W=K_P\cdot e_\theta
-\]
+$$
 
 La velocidad angular depende directamente del error entre la orientación actual y la deseada.
 
