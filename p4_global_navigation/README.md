@@ -131,13 +131,8 @@ De esta forma obtengo un campo de distancias que indica lo cerca que se encuentr
 
 Una vez calculadas las distancias, definí una función de penalización cuadrática:
 
-$$
-P(d)=
-\begin{cases}
-\lambda\left(\frac{R-d}{R}\right)^2 & d<R\\
-0 & d\geq R
-\end{cases}
-$$
+$$ P(d) = \begin{cases} \lambda\left(\frac{R-d}{R}\right)^2 & d<R \\ 0 & d\geq R \end{cases} $$
+
 
 Los parámetros que utilicé finalmente fueron:
 
@@ -312,9 +307,8 @@ Una vez seleccionado el waypoint objetivo, necesito calcular hacia dónde debe o
 
 Primero obtengo el ángulo que une la posición actual del vehículo con el objetivo:
 
-$$
-\theta_d=\operatorname{atan2}(y_w-y_r,x_w-x_r)
-$$
+$$ \theta_d = \mathrm{atan2}(y_w - y_r, x_w - x_r) $$
+
 
 Después calculo el error respecto a la orientación actual:
 
