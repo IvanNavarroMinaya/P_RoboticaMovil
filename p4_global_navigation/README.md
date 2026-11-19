@@ -5,511 +5,253 @@
 
 ## 1. Objetivo de la práctica
 
-El objetivo de esta práctica es desarrollar un sistema de **navegación global** para un robot móvil en el entorno TeleTaxi de **Unibotics (JdeRobot Robotics Academy)**. El usuario selecciona un destino sobre el mapa y el robot debe calcular una trayectoria para llegar hasta él evitando los edificios y siguiendo las carreteras disponibles.
+El objetivo de esta práctica es programar un coche autónomo en Python, utilizando el entorno **TeleTaxi de JdeRobot Robotics Academy (Unibotics)**, para que funcione como un taxi autónomo. El coche dispone de su posición (GPS) y de un **mapa de la ciudad**, y debe ser capaz de ir desde el punto en el que se encuentra hasta el destino que el usuario marca picando en el mapa.
 
-La práctica se basa en el concepto de **Gradient Path Planning (GPP)**: generar un campo de costes a partir del destino y utilizarlo para guiar al robot hacia él, teniendo en cuenta la presencia de obstáculos.
+La planificación tiene que hacerse con el algoritmo de **Gradient Path Planning (GPP)**. Este algoritmo es un ejemplo de **plan como recurso**: genera un campo escalar que el robot puede consultar en cualquier momento para saber hacia dónde moverse. El campo debe ser la **suma de dos subcampos**: el de propagación a destino y el de penalización por cercanía a obstáculos.
 
-El robot proporciona su posición y orientación mediante `HAL.getPose3d()`, mientras que el movimiento se controla con `HAL.setV()` y `HAL.setW()`. El mapa y el destino se obtienen mediante la API de `WebGUI`, y el bucle principal se ejecuta a frecuencia fija utilizando `Frequency.tick()`.
-
-Mi objetivo no era únicamente conseguir que el robot encontrase un camino válido, sino que también fuese capaz de seguirlo correctamente, realizar los giros necesarios y llegar al destino sin quedarse detenido entre distintos puntos de la trayectoria.
+Además, el coche debe pilotarse siguiendo el gradiente de ese campo dentro de un **bucle reactivo**, gobernando la velocidad lineal (`HAL.setV()`) y la angular (`HAL.setW()`) en cada iteración. Una vez alcanzado un destino, el coche debe esperar a que el usuario marque uno nuevo.
 
 ---
 
 ## 2. Planteamiento inicial
 
-Mi primera idea fue dividir el problema en dos partes bastante diferenciadas:
+Mi primera versión ya era completamente funcional: el coche llegaba a cualquier destino de la ciudad sin chocar. Funcionaba así:
 
-- **Planificación global:** utilizar el mapa para calcular un camino desde la posición actual del robot hasta el destino.
-- **Control del movimiento:** transformar ese camino en una serie de objetivos que el robot pueda seguir mediante velocidades lineales y angulares.
+- Calculaba un **Dijkstra desde el destino**, en el que la penalización por cercanía a los edificios multiplicaba el coste de cada paso.
+- Para cada celda guardaba cuál era la siguiente hacia el destino, y con eso **extraía la ruta completa** desde la posición del coche.
+- El coche **seguía esa ruta como una lista de waypoints**: buscaba el waypoint más cercano y apuntaba a otro situado 5 m por delante.
 
-Al principio preferí no mezclar ambas partes. Primero quería conseguir que el planificador generase una trayectoria correcta y después trabajar sobre el movimiento del vehículo.
+Al releer el enunciado me di cuenta de que, aunque funcionaba, no cumplía tres de los requisitos:
 
-También tuve que tener en cuenta que el mapa se representa como una matriz de píxeles, mientras que la posición del robot y el destino se expresan en coordenadas del mundo. Por tanto, antes de poder controlar el movimiento necesitaba entender bien cómo se relacionaban ambos sistemas de coordenadas.
+- **El campo no era una suma de dos subcampos.** La penalización iba multiplicada dentro del coste de Dijkstra, así que solo existía un campo mezclado.
+- **Estaba usando el plan como un plan clásico.** Extraer una ruta y seguirla punto a punto es una secuencia de subobjetivos, justo lo contrario de un plan como recurso.
+- **La propagación recorría el mapa entero**, cuando en GPP la onda se detiene al llegar al punto de partida.
 
-La solución fue desarrollándose progresivamente. Empecé con un planificador básico, después añadí un criterio para alejar las trayectorias de los edificios y, finalmente, incorporé el seguimiento mediante waypoints y el controlador angular.
-
----
-
-## 3. Arquitectura del código
-
-He organizado la solución en un único archivo Python, separando las diferentes partes mediante funciones para que cada una tenga una responsabilidad concreta.
-
-La estructura general es la siguiente:
-
-| Parte | Responsabilidad |
-|---|---|
-| Configuración | Parámetros del mapa, penalizaciones y controlador |
-| Conversión de coordenadas | Transformación entre el mapa y el mundo |
-| Distancia a obstáculos | Cálculo de la proximidad a los edificios |
-| Penalización | Generación del campo de penalización |
-| Planificación global | Cálculo del campo de costes mediante Dijkstra |
-| Extracción del camino | Obtención de la trayectoria desde el robot al destino |
-| Seguimiento | Conversión de la ruta a waypoints y selección del objetivo |
-| Controlador | Cálculo de las velocidades lineal y angular |
-| `main()` | Integración de todos los componentes y ejecución continua |
-
-He intentado mantener los parámetros configurables al principio del archivo. De esta manera, puedo modificar el comportamiento del robot sin tener que cambiar la lógica de las funciones.
+Visto esto, decidí rehacer la planificación y el seguimiento manteniendo todo lo que ya funcionaba: la carga del mapa, la conversión de coordenadas, el controlador y la gestión de destinos.
 
 ---
 
-## 4. Planificación global
+## 3. Decisión de usar el plan como recurso
 
-### 4.1 Representación del mapa
+El cambio más importante fue dejar de guardar una ruta. En la versión final, el resultado de la planificación es únicamente un **campo de costes**: una matriz en la que cada celda de carretera tiene un valor que es más bajo cuanto más cerca está del destino y más alto cuanto más cerca está de un edificio.
 
-Lo primero que hice fue obtener el mapa utilizando `WebGUI.getMap()`:
+El robot no sigue ninguna lista de puntos. En cada iteración del bucle consulta el campo desde la celda en la que se encuentra y baja por él unas pocas celdas. El punto al que llega es su objetivo para esa iteración.
+
+Esto tiene una ventaja clara frente a la versión anterior: si el coche se desvía, no hay ninguna ruta que deje de ser válida. El campo le sigue indicando hacia dónde ir desde su nueva posición, sin tener que replanificar.
+
+La planificación solo se ejecuta cuando cambia el destino. El resto del tiempo el campo simplemente se consulta.
+
+---
+
+## 4. Representación del mapa
+
+### 4.1 Mapa de la ciudad
+
+El mapa se obtiene con `WebGUI.getMap()` y es una imagen de **400 × 400 píxeles** en escala de grises con solo dos valores: `255` para las carreteras y `0` para los edificios. Cada celda de la matriz es una celda del mapa sobre la que se planifica.
+
+### 4.2 Conversión de coordenadas
+
+Según la API, el mundo de Gazebo mide **500 × 500 m** centrado en el origen, así que cada píxel equivale a **1,25 m** (0,8 píxeles por metro).
+
+- **Del mundo al mapa** uso `WebGUI.rowColumn()`. Tuve que tener en cuenta que devuelve los índices en el orden contrario al que se usa para indexar la matriz, así que los intercambio.
+- **Del mapa al mundo** aplico la relación lineal inversa: `x = (fila − 200) / 0.8` e `y = (columna − 200) / 0.8`. El punto obtenido es una esquina de la celda y no su centro, pero el error (como mucho 1,25 m) es despreciable frente a la distancia a la que apunta el coche.
+
+### 4.3 Movimientos entre celdas
+
+Cada celda tiene ocho vecinas: cuatro ortogonales con coste `1` y cuatro diagonales con coste `√2`. Así, los movimientos diagonales cuestan más, como corresponde a la distancia real.
+
+Además, un movimiento diagonal solo se permite si las dos celdas ortogonales que lo rodean también son carretera. Sin esta comprobación, el camino podía cortar en diagonal la esquina de un edificio.
+
+---
+
+## 5. Subcampo de propagación a destino
+
+### 5.1 La onda desde el destino
+
+Este subcampo es la onda del GPP: se genera en el destino, con valor `0`, y se propaga por las carreteras sin atravesar los edificios. Cada celda acaba guardando la distancia hasta el destino recorriendo carreteras.
+
+Para propagarla uso una cola de prioridad (`heapq`), expandiendo siempre primero la celda con menor coste acumulado. Propagar la onda de esta forma es **equivalente a un Dijkstra desde el destino**, que era lo que ya tenía. La diferencia respecto a la primera versión es que ahora el coste de cada paso es solo la distancia (`1` o `√2`), sin penalización.
+
+### 5.2 Detener la propagación
+
+En GPP la propagación se detiene al llegar al punto de partida. Lo implementé con una única condición al sacar cada celda de la cola:
 
 ```python
-MAP_URL = '/resources/exercises/global_navigation/images/cityLargenBin.png'
-map_data = WebGUI.getMap(MAP_URL)
+if current_cost > costs[start] + EXTRA_PROPAGATION:
+    break
 ```
 
-El mapa tiene unas dimensiones de 400 × 400 píxeles y es una imagen binaria. Al analizar sus valores comprobé que:
+Mientras la onda no ha llegado al inicio, `costs[start]` vale infinito y la condición nunca se cumple. Cuando llega, la onda continúa un margen de `EXTRA_PROPAGATION = 20` unidades de coste (unas 20 celdas, unos 25 m) y se detiene.
 
-- `255` representa las carreteras, es decir, las zonas transitables.
-- `0` representa los edificios y obstáculos.
-
-A partir de esta información, el planificador puede distinguir qué posiciones se pueden utilizar para construir una trayectoria y cuáles deben evitarse.
-
-Para calcular los movimientos posibles utilizo los ocho vecinos de cada celda: cuatro movimientos ortogonales y cuatro diagonales.
-
-Los costes son:
-
-- Movimiento horizontal o vertical: 1.
-- Movimiento diagonal:$\sqrt{2}$.
-
-También añadí una comprobación para evitar el *corner cutting*. Si un movimiento diagonal atraviesa la esquina de un edificio, se descarta aunque la celda de destino sea transitable. Para ello compruebo que las dos celdas ortogonales adyacentes también sean carretera.
-
-### 4.2 Primer planteamiento: algoritmo de Dijkstra
-
-Para calcular la trayectoria inicial decidí utilizar el algoritmo de **Dijkstra**.
-
-La idea es propagar los costes desde el destino hacia el resto del mapa. El destino comienza con coste cero y, a partir de ahí, se van procesando las celdas pendientes con menor coste acumulado.
-
-Para gestionar las posiciones pendientes utilizo una cola de prioridad mediante `heapq`, lo que permite procesar primero las posiciones con menor coste.
-
-El resultado es una matriz que almacena el coste mínimo necesario para llegar al destino desde cada celda transitable.
-
-Elegí este algoritmo porque permite trabajar con diferentes costes de movimiento y posteriormente me iba a permitir incorporar otros factores al cálculo de la trayectoria sin tener que cambiar toda la estructura.
-
-### 4.3 Extracción de la trayectoria
-
-Una vez calculado el campo de costes, necesitaba obtener el camino concreto que debía seguir el robot.
-
-Para ello, comienzo en la posición del vehículo y voy seleccionando los vecinos que permiten reducir el coste hasta llegar al destino.
-
-Durante las primeras pruebas observé que seleccionar simplemente cualquier vecino con menor coste podía producir cambios de dirección innecesarios. Por eso añadí un criterio de continuidad: cuando hay varios candidatos con un coste igualmente válido, se favorece el que mantiene una dirección más parecida a la del movimiento anterior.
-
-También compruebo que cada movimiento sea válido y que no se repitan posiciones.
-
-Con esto consigo obtener una lista ordenada de coordenadas `(fila, columna)` que representa el recorrido completo.
+No paré exactamente en el inicio a propósito: si el coche se desvía un poco hacia una zona a la que la onda no ha llegado, no tendría campo que consultar. El margen deja información válida alrededor del recorrido.
 
 ---
 
-## 5. Mejora de la planificación: penalización de obstáculos
+## 6. Subcampo de penalización y suma de campos: el camino hasta ajustarlo
 
-### 5.1 Problema de la primera versión
+Esta fue la parte que más iteraciones requirió.
 
-Con el planificador inicial ya conseguía generar caminos válidos, pero había un aspecto que quería mejorar: el algoritmo únicamente tenía en cuenta el coste de desplazamiento.
+### 6.1 La penalización
 
-Esto significaba que podía elegir una trayectoria que pasase muy cerca de los edificios, siempre que fuese una de las opciones más cortas.
+Para saber lo cerca que está cada celda de un edificio uso `cv2.distanceTransform()`, que devuelve la distancia de cada píxel de carretera al edificio más cercano. A partir de esa distancia `d` calculo una penalización cuadrática:
 
-Aunque el camino no atravesase ningún obstáculo, no me parecía el comportamiento más adecuado. Prefería que el robot mantuviese cierta distancia respecto a ellos, aunque eso supusiese recorrer algunos metros más.
-
-Por este motivo decidí incorporar una penalización en función de la proximidad a los edificios.
-
-### 5.2 Cálculo de distancias a los edificios
-
-Para poder aplicar esta penalización, primero necesitaba conocer la distancia de cada celda al obstáculo más cercano.
-
-Implementé una propagación desde todas las celdas ocupadas del mapa. Inicialmente, las posiciones correspondientes a edificios tienen distancia cero y el resto tienen distancia infinita.
-
-A partir de ahí, se propagan las distancias utilizando los mismos ocho movimientos que en el planificador, con costes ortogonales de 1 y diagonales de $\sqrt{2}$.
-
-De esta forma obtengo un campo de distancias que indica lo cerca que se encuentra cada posición de un edificio.
-
-### 5.3 Función de penalización
-
-Una vez calculadas las distancias, definí una función de penalización cuadrática:
-
-```math
-P(d) = \left\{ \begin{array}{ll} \lambda \left(\frac{R-d}{R}\right)^2 & d < R \\ 0 & d \geq R \end{array} \right.
+```
+P(d) = λ · max(0, 1 − d/R)²
 ```
 
-Los parámetros que utilicé finalmente fueron:
+`λ` (`PENALTY_STRENGTH`) es la penalización máxima, pegado al edificio, y `R` (`INFLUENCE_RADIUS`) es la distancia a partir de la cual la penalización vale `0`. Este subcampo solo depende del mapa, así que lo calculo una vez al arrancar.
 
-| Parámetro | Valor |
-|---|---:|
-| `INFLUENCE_RADIUS` | 6.0 |
-| `PENALTY_STRENGTH` | 3.0 |
+### 6.2 Primera versión: penalización dentro de Dijkstra
 
-La función hace que las posiciones próximas a los edificios tengan un coste adicional. Cuanto menor es la distancia al obstáculo, mayor es la penalización.
+En la versión original, la penalización multiplicaba el coste de cada paso: `step_cost * (1 + P)`. Funcionaba muy bien porque la penalización se acumulaba a lo largo de todo el camino, pero no era una suma de dos subcampos como pide el enunciado.
 
-Cuando la distancia alcanza el radio de influencia, la penalización pasa a ser cero.
+### 6.3 Segunda versión: suma con los valores anteriores
 
-Elegí esta función porque aumenta progresivamente el coste al acercarse a un edificio, sin introducir un salto brusco en el límite del radio de influencia.
-
-### 5.4 Incorporación al coste de movimiento
-
-El siguiente paso fue integrar la penalización en Dijkstra.
-
-Para ello, modifiqué el coste de transición entre dos celdas:
-
-$$
-C(i,j)=D(i,j)\left(1+\frac{P(i)+P(j)}{2}\right)
-$$
-
-Donde $D(i,j)$ es el coste geométrico del movimiento y $P(i)$, $P(j)$ son las penalizaciones de las dos celdas.
-
-Utilizo la media de ambas penalizaciones para tener en cuenta tanto la posición actual como la siguiente.
-
-Esta modificación permite que el planificador no busque únicamente el camino más corto en distancia, sino que tenga en cuenta también la proximidad a los obstáculos.
-
-El resultado es un compromiso entre longitud de la trayectoria y separación respecto a los edificios. En determinadas situaciones, el robot puede recorrer un camino algo más largo si con ello evita pasar demasiado cerca de un obstáculo.
-
----
-
-## 6. Conversión de coordenadas
-
-Esta fue una de las partes que más tuve que comprobar durante el desarrollo, porque necesitaba conectar correctamente el planificador con el movimiento real del robot.
-
-### 6.1 De coordenadas del mundo al mapa
-
-La posición del robot y el destino se expresan mediante coordenadas `(x, y)`. Sin embargo, para consultar el mapa necesito utilizar índices de matriz `(fila, columna)`.
-
-Para realizar la conversión utilicé `WebGUI.rowColumn()`.
-
-Durante las primeras pruebas observé que el orden devuelto por esta función no coincidía directamente con el orden necesario para indexar la matriz. Al comprobar diferentes posiciones, vi que tenía que intercambiar los componentes:
+Al separar los dos subcampos, el campo total pasa a ser:
 
 ```python
-target_rc = WebGUI.rowColumn(target)
-
-goal = (
-    int(target_rc[1]),
-    int(target_rc[0])
-)
+field = distances + penalties
 ```
 
-Hice varias comprobaciones consultando directamente el valor de los píxeles. En algunos casos, utilizando el orden original obtenía un edificio, mientras que al intercambiar los componentes la posición correspondía correctamente a una carretera.
+El problema es que una penalización sumada empuja mucho menos que una multiplicada: ya no se acumula a lo largo del camino, solo cuenta en la celda en la que está el coche. Con los valores que tenía, el coche circulaba más pegado a los edificios que en la versión anterior.
 
-Una vez identificado este comportamiento, apliqué la misma conversión tanto al destino como a la posición del robot.
+### 6.4 Tercera versión: más penalización y mínimos locales
 
-### 6.2 Del mapa al mundo
+La solución obvia era aumentar la penalización. Al hacerlo, el coche se separaba más de los edificios, pero en muchos trayectos **dejaba de llegar al destino**: se quedaba parado en mitad de la carretera.
 
-Después de obtener la trayectoria, necesitaba convertir sus puntos a coordenadas del mundo para poder utilizarlos como objetivos del controlador.
+El motivo eran los **mínimos locales**: celdas en las que ninguna vecina tiene un valor más bajo. Si la penalización sube más deprisa de lo que baja la distancia al destino, al acercarse a un edificio puede pasar que todas las vecinas tengan un valor mayor, y el descenso se detiene allí.
 
-A partir de varias pruebas con `WebGUI.rowColumn()`, observé que la relación entre las coordenadas del mundo y los índices de la matriz era aproximadamente lineal:
+### 6.5 Versión final: penalización acotada por la distancia
 
-$$
-\text{row} \approx 200+0.8y
-$$
+La condición para que no aparezcan mínimos locales es que la penalización crezca, como mucho, 1 por celda, que es lo mínimo que baja la distancia al avanzar hacia el destino. La pendiente de la penalización es:
 
-$$
-\text{col} \approx 200+0.8x
-$$
-
-Por tanto, utilicé la siguiente transformación inversa:
-
-$$
-x=\frac{\text{row}-200}{0.8}
-$$
-
-$$
-y=\frac{\text{col}-200}{0.8}
-$$
-
-
-La función queda así:
-
-```python
-def grid_to_world(row, col):
-
-    x = (row - MAP_CENTER) / PIXELS_PER_METER
-    y = (col - MAP_CENTER) / PIXELS_PER_METER
-
-    return x, y
+```
+|dP/dd| = (2λ / R) · (1 − d/R)
 ```
 
-Esta transformación es una aproximación al centro de cada celda, por lo que no tiene por qué recuperar exactamente la coordenada original.
+Si se elige `λ = R/2`, la pendiente queda `1 − d/R`, que en cualquier celda de carretera (`d ≥ 1`) es menor que 1. Por otro lado, desde cualquier celda, al moverse hacia la celda desde la que llegó la onda, la distancia baja exactamente el coste del paso, mientras que la penalización sube menos que ese coste. Por tanto, **siempre existe una vecina con menor valor** y el coche nunca se queda atascado.
 
-Para comprobarla, realicé varias conversiones de ida y vuelta. Al transformar una posición del mundo al mapa y volver a utilizar `WebGUI.rowColumn()` sobre la posición reconstruida, obtenía los mismos índices de la matriz.
-
-Con estas comprobaciones consideré que la conversión era suficientemente precisa para utilizarla en el seguimiento de la trayectoria.
-
-### 6.3 Visualización del camino
-
-También tuve que tener en cuenta que `WebGUI.showPath()` utiliza las coordenadas en orden `(x, y)`, mientras que mi trayectoria está almacenada como `(fila, columna)`.
-
-Por tanto, antes de representar el camino, intercambio los componentes:
-
-```python
-path_array = np.array(
-    [(col, row) for row, col in path],
-    dtype=np.int32
-)
-
-WebGUI.showPath(path_array)
-```
-
-De esta forma, la trayectoria se dibuja correctamente sobre el mapa.
+Con esta regla elegí `INFLUENCE_RADIUS = 12` y `PENALTY_STRENGTH = 6`: la mayor penalización posible sin crear mínimos locales. Con estos valores el coche vuelve a circular a una distancia de los edificios similar a la de la versión original.
 
 ---
 
-## 7. Seguimiento de la trayectoria mediante waypoints
+## 7. Descenso del campo: pedir consejo al plan
 
-Una vez que el planificador generaba una ruta válida, el siguiente paso era conseguir que el robot la siguiese.
+### 7.1 El descenso
 
-Mi primera aproximación consistía en utilizar los puntos de la trayectoria como objetivos, pero no quería que el vehículo tuviese que detenerse o corregir su orientación continuamente en cada celda.
-
-Por eso incorporé un sistema de seguimiento basado en **waypoints y distancia de anticipación (*lookahead*)**.
-
-### 7.1 Búsqueda del waypoint más cercano
-
-En cada iteración obtengo la posición actual del robot mediante `HAL.getPose3d()` y busco el punto de la trayectoria que se encuentra más cerca.
-
-La distancia se calcula mediante:
-
-$$
-d=\sqrt{(x_r-x_w)^2+(y_r-y_w)^2}
-$$
-
-Donde `(x_r, y_r)` es la posición del robot y `(x_w, y_w)` la del waypoint.
-
-Para no tener que recorrer toda la trayectoria en cada iteración, guardo el índice del último waypoint y limito la búsqueda a una ventana de puntos posteriores.
-
-El valor utilizado es:
+En cada iteración, el coche convierte su posición a una celda del mapa y desde ahí baja por el campo: mira sus ocho vecinas, se mueve a la de menor valor y repite. Si ninguna vecina es más baja que la celda actual, se detiene:
 
 ```python
-NEAREST_SEARCH_WINDOW = 40
+if field[best] >= field[row, col]:
+    break
 ```
 
-Esto permite que el seguimiento avance por la trayectoria sin tener que buscar constantemente desde el principio.
+Por el razonamiento del apartado 6.5, esto solo ocurre al llegar al destino.
 
-### 7.2 Selección del waypoint de anticipación
+Durante el descenso solo considero vecinas dentro del mapa, de carretera, con un valor finito en el campo y que no corten en diagonal la esquina de un edificio. Es la misma regla de esquinas que usa la propagación, por lo que el descenso nunca intenta un movimiento que la onda no haya permitido.
 
-Una vez localizado el waypoint más cercano, selecciono otro punto situado a una distancia de anticipación de 5 metros sobre la trayectoria.
+### 7.2 Distancia de anticipación
 
-Para hacerlo, voy sumando las distancias entre los puntos consecutivos hasta alcanzar la distancia configurada:
+El coche no apunta a la celda vecina, sino a la que alcanza tras `LOOKAHEAD_STEPS = 3` pasos de descenso (unos 4 m por delante). Si apunta demasiado cerca, el giro es muy brusco; si apunta demasiado lejos, la recta hasta el objetivo atraviesa las esquinas de los cruces.
+
+Empecé con un valor equivalente a los 5 m de la versión original (4 pasos), pero en algunos cruces el coche rozaba la esquina del edificio al girar por el interior de la curva. Con 3 pasos esos roces desaparecieron.
+
+### 7.3 Visualización
+
+Para comprobar el resultado represento el campo total en escala de grises con `WebGUI.showNumpy()` y dibujo con `WebGUI.showPath()` la ruta que se obtiene bajando por el campo desde la posición inicial hasta el destino. Esa ruta **solo sirve para visualizar**: el coche no la sigue, sino que vuelve a consultar el campo en cada iteración.
+
+---
+
+## 8. Controlador de velocidades
+
+Una vez obtenido el punto objetivo, calculo el error angular entre la orientación del coche y la dirección hacia ese punto, y lo normalizo al rango `[-π, π]` para que el coche gire siempre por el camino más corto.
+
+La velocidad angular es proporcional al error y está limitada:
 
 ```python
-LOOKAHEAD_DISTANCE = 5.0
+angular = max(-W_MAX, min(W_MAX, K_P * error))
 ```
 
-El punto seleccionado se convierte en el objetivo temporal del controlador.
-
-La ventaja de este planteamiento es que el robot no necesita dirigirse a cada celda individualmente. En lugar de eso, intenta alcanzar un punto situado más adelante en el recorrido, consiguiendo un seguimiento más continuo.
-
----
-
-## 8. Controlador de movimiento
-
-### 8.1 Cálculo del error angular
-
-Una vez seleccionado el waypoint objetivo, necesito calcular hacia dónde debe orientarse el robot.
-
-Primero obtengo el ángulo que une la posición actual del vehículo con el objetivo:
-
-$$ \theta_d = \mathrm{atan2}(y_w - y_r, x_w - x_r) $$
-
-
-Después calculo el error respecto a la orientación actual:
-
-$$
-e_\theta=\theta_d-\theta_r
-$$
-
-Para evitar problemas al cruzar los límites de una vuelta completa, normalizo el error al intervalo $[-\pi,\pi]$.
-
-De esta forma, el robot siempre intenta realizar el giro por el sentido que supone el menor cambio angular.
-
-### 8.2 Comprobación del sentido de giro
-
-Antes de implementar el controlador completo, hice una prueba específica para comprobar cómo respondía el vehículo a las velocidades angulares.
-
-Probé valores positivos y negativos de `HAL.setW()` y observé cómo cambiaba el yaw.
-
-Comprobé que una velocidad angular positiva incrementaba el yaw y una negativa lo disminuía.
-
-Esta prueba me permitió confirmar el sentido de giro y asegurarme de que el controlador aplicaba las correcciones en la dirección adecuada.
-
-### 8.3 Control proporcional angular
-
-Para controlar la orientación utilicé un controlador proporcional:
-
-$$
-W=K_P\cdot e_\theta
-$$
-
-La velocidad angular depende directamente del error entre la orientación actual y la deseada.
-
-Si el error es grande, se aplica una corrección mayor. A medida que el robot se orienta hacia el objetivo, el error disminuye y también lo hace la velocidad angular.
-
-La ganancia utilizada es:
+La velocidad lineal depende también del error: si supera `ANGLE_STOP = 30°`, el coche no avanza y solo gira; si no, avanza a `V_MAX · cos(error)`, de forma que va más rápido cuanto mejor orientado está:
 
 ```python
-K_P = 1.0
+linear = 0.0 if abs(error) > ANGLE_STOP else V_MAX * math.cos(error)
 ```
 
-Además, establecí una tolerancia angular de 3 grados para considerar que el robot está suficientemente orientado.
+Este controlador es el mismo que en la primera versión. Al cambiar la forma de elegir el punto objetivo no hizo falta modificarlo.
 
-Durante esta fase mantengo la velocidad lineal a cero, de forma que el vehículo primero corrige su orientación y después comienza a avanzar.
+---
 
-### 8.4 Movimiento combinado
+## 9. Gestión de destinos en el bucle principal
 
-Una vez que el robot está orientado hacia el waypoint, permito el avance lineal.
+El bucle principal se ejecuta a frecuencia fija con `Frequency.tick()` y en cada iteración comprueba la situación del coche:
 
-Durante el desplazamiento sigo calculando el error angular para corregir la dirección del vehículo. Si el error es demasiado elevado, se reduce o detiene el avance para evitar que continúe desplazándose en una dirección incorrecta.
+- **Sin destino:** el coche permanece parado y se descarta el campo anterior.
+- **Destino nuevo:** comparo el destino actual con el anterior. Si ha cambiado, paro el coche y calculo el campo nuevo. Si el destino no está en carretera o no se puede alcanzar, se informa por consola y el coche no se mueve.
+- **Destino alcanzado:** si la distancia al destino es menor que `GOAL_TOLERANCE = 2.0`, el coche se detiene y espera a que el usuario marque otro punto.
+- **En camino:** descenso del campo, cálculo de velocidades y envío con `HAL.setV()` y `HAL.setW()`.
 
-Los límites de velocidad que he decidido mantener en la versión final son:
+Cada `PRINT_EVERY = 30` iteraciones muestro por consola la distancia al destino, el error angular y las velocidades, para no saturar la salida.
 
-```python
-V_MAX = 30
-W_MAX = 15
+---
+
+## 10. Limitaciones
+
+### 10.1 Separación de los edificios frente a mínimos locales
+
+La regla `λ = R/2` limita lo fuerte que puede ser la penalización. Separar más el coche de los edificios y evitar mínimos locales son objetivos contrapuestos: si se aumenta `PENALTY_STRENGTH` por encima de ese valor, el coche se aleja más de las paredes, pero vuelven a aparecer celdas en las que se queda atascado.
+
+### 10.2 Zona propagada
+
+El campo solo es válido en la zona a la que ha llegado la onda. Si el coche saliera de ella, por ejemplo, por un desvío muy grande, el descenso no encontraría ninguna vecina más baja y el coche se detendría, ya que el campo solo se recalcula cuando cambia el destino. El margen de `EXTRA_PROPAGATION` hace que esto no ocurra en condiciones normales.
+
+### 10.3 Cruces y esquinas
+
+En los cruces, el camino más corto pasa cerca de la esquina interior. La penalización y la distancia de anticipación reducen este efecto, pero es la situación en la que el coche pasa más cerca de los edificios.
+
+### 10.4 Discretización
+
+El campo se consulta sobre celdas de 1,25 m, por lo que el descenso elige celdas vecinas y no una dirección continua. Esto hace que el punto objetivo cambie a saltos, aunque el controlador lo suaviza.
+
+---
+
+## 11. Flujo final
+
+El flujo completo en la versión final es el siguiente:
+
+```
+INICIO ──► CARGA DEL MAPA ──► CAMPO DE PENALIZACIÓN
+                                       │
+                                       ▼
+          ┌──────────────────► ESPERA DE DESTINO
+          │                            │
+          │                     (destino nuevo)
+          │                            ▼
+          │          CAMPO DE PROPAGACIÓN + PENALIZACIÓN = CAMPO TOTAL
+          │                            │
+          │                            ▼
+          │                ┌──► DESCENSO DEL CAMPO ──► CÁLCULO DE V Y W
+          │                │                                │
+          │                │       (destino no alcanzado)   │
+          │                └────────────────────────────────┤
+          │                                                 │
+          │                          (destino alcanzado)    ▼
+          └────────────────────────────────────────────── PARAR
 ```
 
-También utilizo una tolerancia de 2 metros para considerar que el robot ha alcanzado el destino.
+El campo se calcula una vez por destino. Mientras el coche no llega, el bucle vuelve directamente al descenso: el campo solo se consulta, no se recalcula. Si el usuario marca un destino distinto durante el trayecto, se calcula un campo nuevo.
 
 ---
 
-## 9. Integración y ajustes finales
-
-Una vez que cada parte funcionaba de forma independiente, integré el planificador y el controlador en el programa principal.
-
-El funcionamiento general es:
-
-1. Se carga el mapa del entorno.
-2. Se obtiene la posición actual del robot.
-3. Se comprueba si el usuario ha seleccionado un destino.
-4. Se convierten la posición inicial y el destino a coordenadas del mapa.
-5. Se calcula el campo de distancias a los edificios.
-6. Se obtiene el campo de penalización.
-7. Se calcula el campo de costes mediante Dijkstra.
-8. Se extrae la trayectoria desde el robot hasta el destino.
-9. Se convierte la trayectoria a coordenadas del mundo.
-10. Se busca el waypoint más cercano.
-11. Se selecciona el waypoint de anticipación.
-12. Se calcula el error angular y se envían las velocidades al vehículo.
-13. Se comprueba si se ha alcanzado el destino.
-
-También tuve en cuenta que el usuario puede seleccionar un nuevo destino durante la ejecución. Cuando detecto un cambio, se vuelve a calcular la trayectoria para adaptarse al nuevo objetivo.
-
-### 9.1 Problemas durante el seguimiento
-
-Durante las primeras pruebas con el movimiento completo observé que el robot llegaba a realizar el recorrido, pero en algunos momentos se producían pequeños parones entre waypoints.
-
-El problema no estaba en la generación de la ruta, sino en la forma de gestionar el seguimiento y las correcciones del vehículo.
-
-Después de revisar el código, simplifiqué parte de la lógica y eliminé comprobaciones y funciones auxiliares que ya no eran necesarias para el funcionamiento final.
-
-Tras estos cambios, el comportamiento mejoró y dejaron de aparecer los parones que había observado anteriormente.
-
-### 9.2 Ajuste de velocidades
-
-Por último, fui modificando los límites de velocidad para conseguir que el robot recorriese la trayectoria con mayor rapidez.
-
-Probé diferentes valores y decidí mantener finalmente:
-
-| Parámetro | Valor |
-|---|---:|
-| `V_MAX` | 30 |
-| `W_MAX` | 15 |
-
-Con estos valores estoy satisfecho con el comportamiento obtenido y he decidido no seguir añadiendo modificaciones a la lógica principal, ya que considero que la solución actual cumple el objetivo de la práctica.
-
----
-
-## 10. Limitaciones observadas
-
-Aunque el comportamiento final es satisfactorio, hay algunos aspectos que podrían mejorarse:
-
-- **Trayectoria discreta:** el camino se calcula sobre una rejilla, por lo que está formado por segmentos entre celdas. Se podría aplicar un suavizado posterior para obtener recorridos más continuos, siempre comprobando que no atraviesen edificios.
-- **Ajuste de velocidades:** actualmente utilizo límites máximos configurados manualmente. Se podría adaptar la velocidad lineal a la curvatura del camino o al error angular.
-- **Parámetros de penalización:** los valores del radio de influencia y la intensidad afectan directamente a la trayectoria. Se podrían realizar más pruebas para estudiar diferentes combinaciones.
-- **Resolución del mapa:** la precisión de la trayectoria depende de la resolución de la matriz y de la conversión entre coordenadas.
-
-He preferido no incorporar estas mejoras a la versión final para mantener una solución sencilla y estable, en lugar de seguir añadiendo funcionalidades que no son necesarias para cumplir el objetivo principal.
-
----
-
-## 11. Flujo final del sistema
-
-El funcionamiento completo del programa se puede resumir de la siguiente manera:
-
-```text
-          CARGA DEL MAPA
-                 |
-                 v
-       SELECCIÓN DEL DESTINO
-                 |
-                 v
-      CONVERSIÓN DE COORDENADAS
-                 |
-                 v
-       DISTANCIA A OBSTÁCULOS
-                 |
-                 v
-       CAMPO DE PENALIZACIÓN
-                 |
-                 v
-       CAMPO DE COSTES (DIJKSTRA)
-                 |
-                 v
-        EXTRACCIÓN DEL CAMINO
-                 |
-                 v
-       CONVERSIÓN AL MUNDO
-                 |
-                 v
-       BÚSQUEDA DEL WAYPOINT
-                 |
-                 v
-       SELECCIÓN LOOKAHEAD
-                 |
-                 v
-       CÁLCULO DEL ERROR ANGULAR
-                 |
-                 v
-       CONTROL DE VELOCIDADES
-                 |
-                 v
-       ¿DESTINO ALCANZADO?
-           /          \
-         NO            SÍ
-         |              |
-         v              v
-    CONTINUAR          PARAR
-     CONTROL
-```
-
-Si el usuario selecciona un nuevo destino durante la ejecución, el sistema vuelve a realizar la planificación para calcular una nueva trayectoria.
-
----
-
-## 12. Demostración
-
-[![Demostración de Navegación Global](../docs/p4/p4_demo.gif)](../docs/p4/p4_demo.gif)
-
-### 12.1 Resultados
-
-En la demostración se podrá observar:
-
-- La selección de diferentes destinos sobre el mapa.
-- La generación de la trayectoria evitando los edificios.
-- La separación respecto a los obstáculos gracias a la penalización.
-- El seguimiento de la ruta mediante waypoints.
-- Los giros y el desplazamiento del vehículo hasta alcanzar el destino.
+## 12. Demostración en vídeo
+[![Demostración Navegación Global](../docs/p4/p4_demo.gif)]
 
 ---
 
 ## 13. Conclusiones
 
-El resultado final cumple el objetivo principal de la práctica: el robot es capaz de calcular una trayectoria global desde su posición hasta un destino seleccionado por el usuario y seguirla evitando los edificios.
+El resultado final cumple los requisitos del enunciado: el campo es la suma del subcampo de propagación y el de penalización, la onda se detiene después de alcanzar el punto de partida, y el coche se pilota en un bucle reactivo consultando el campo en cada iteración, sin seguir ninguna ruta almacenada.
 
-La parte que más trabajo me ha llevado ha sido conectar correctamente la planificación sobre la matriz con el movimiento real del vehículo. Especialmente, la conversión de coordenadas y el seguimiento mediante waypoints requirieron varias pruebas hasta conseguir un comportamiento adecuado.
+El aprendizaje principal de esta práctica ha sido que tener un programa que funciona no es lo mismo que implementar el algoritmo pedido. Mi primera versión llegaba a todos los destinos, pero usaba el plan como una secuencia de puntos. Pasar a un plan como recurso no requirió cambiar el algoritmo de propagación, sino la forma de usar su resultado.
 
-También considero importante la mejora introducida mediante la penalización de obstáculos. Con ella, el planificador no se limita a encontrar el camino más corto, sino que tiene en cuenta la proximidad a los edificios y puede elegir recorridos más convenientes.
-
-Por último, el desarrollo del controlador me ha permitido comprobar que tener una buena trayectoria calculada no garantiza por sí solo que el robot vaya a seguirla correctamente. Es necesario tener en cuenta su orientación, seleccionar objetivos intermedios y ajustar las velocidades para conseguir un movimiento estable.
-
-En general, estoy satisfecho con la solución final. He conseguido integrar la planificación global y el control del vehículo en un único programa, y he podido comprobar en simulación que el robot llega a los destinos seleccionados siguiendo las trayectorias generadas.
-
-El aprendizaje principal de esta práctica ha sido entender cómo se conectan la representación del entorno, la planificación de caminos y el control de un robot móvil para conseguir un sistema de navegación completo.
+También he aprendido que la forma de combinar los dos subcampos tiene consecuencias. Sumar una penalización no es lo mismo que multiplicarla, y una penalización demasiado fuerte crea mínimos locales que bloquean el descenso. Entender por qué aparecen me permitió elegir los parámetros con un criterio en lugar de por prueba y error.

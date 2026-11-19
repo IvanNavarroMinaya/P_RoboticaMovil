@@ -34,7 +34,7 @@ A continuación se muestra el listado completo de prácticas. Haz clic en cada u
 | **02** | **Seguidor de Línea F1** | Control de trayectoria y estabilidad mediante PID en circuito. | 🟢 Completada | [Ver memoria](./p2_follow_line/README.md) |
 | **03** | **Evasor de obstáculos F1** | Navegación local evadiendo obstáculos con algoritmo VFF | 🟢 Completada | [Ver memoria](./p3_obstacle_avoidance/README.md) |
 | **04** | **Navegador global con TeleTaxi** | Navegación global implementando un algoritmo GPP | 🟢 Completada | [Ver memoria](./p4_global_navigation/README.md) |
-| **05** | **Práctica 5** | [Breve descripción de la práctica 5] | ⏳ En progreso | [Ver memoria](./p5/README.md) |
+| **05** | **Mapeo de almacén industrial** | Construcción de un mapa de ocupación probabilístico con un sensor laser y autolocalización | ⏳ En progreso | [Ver memoria](./p5_laser_mapping/README.md) |
 | **06** | **Práctica 6** | [Breve descripción de la práctica 6] | 🔴 Pendiente | [Ver memoria](./p6/README.md) |
 
 ---
@@ -61,8 +61,8 @@ A continuación se muestra el listado completo de prácticas. Haz clic en cada u
 
 ![P4](./docs/p4/p4_demo.gif)
 
-### Práctica 5: 
-> *[Breve descripción de la práctica 5]*
+### Práctica 5: Mapeo de almacén industrial
+> *Mapeo de un mapa de ocupación probabilística en forma de rejilla, a través de un sensor laser y autolocalización*
 
 ![P5](./docs/p5/p5_demo.gif)
 
